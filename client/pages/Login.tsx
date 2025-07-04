@@ -17,10 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Login() {
+  const { signIn, signInWithProvider, user } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -29,6 +32,13 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/profile');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,17 +64,29 @@ export default function Login() {
       return;
     }
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const { error } = await signIn(formData.email, formData.password);
+      if (error) {
+        setErrors({ general: error.message });
+      } else {
+        navigate('/profile');
+      }
+    } catch (error) {
+      setErrors({ general: 'An unexpected error occurred' });
+    } finally {
       setIsLoading(false);
-      // In a real app, this would handle authentication
-      console.log("Login attempted:", formData);
-    }, 2000);
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`Login with ${provider}`);
-    // In a real app, this would handle social authentication
+  const handleSocialLogin = async (provider: 'github' | 'google') => {
+    try {
+      const { error } = await signInWithProvider(provider);
+      if (error) {
+        setErrors({ general: error.message });
+      }
+    } catch (error) {
+      setErrors({ general: 'Social login failed' });
+    }
   };
 
   return (
@@ -102,6 +124,13 @@ export default function Login() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Error Display */}
+            {errors.general && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-600 dark:text-red-400">{errors.general}</p>
+              </div>
+            )}
+
             {/* Social Login */}
             <div className="space-y-3">
               <Button
@@ -275,8 +304,9 @@ export default function Login() {
               </span>
             </div>
             <div className="space-y-1 text-xs text-orange-700 dark:text-orange-400">
-              <p>Email: demo@psit.ac.in</p>
-              <p>Password: demo123</p>
+              <p>Email: admin@hackorbit.com (Admin Access)</p>
+              <p>Email: demo@psit.ac.in (Regular User)</p>
+              <p>Password: password123</p>
             </div>
           </CardContent>
         </Card>

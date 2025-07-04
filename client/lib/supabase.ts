@@ -162,6 +162,22 @@ export const db = {
         .single()
     },
 
+    update: async (id: string, updates: any) => {
+      return await supabase
+        .from('events')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+    },
+
+    delete: async (id: string) => {
+      return await supabase
+        .from('events')
+        .delete()
+        .eq('id', id)
+    },
+
     register: async (eventId: string, userId: string) => {
       return await supabase
         .from('event_registrations')
@@ -338,6 +354,23 @@ export const realtime = {
           schema: 'public',
           table: 'profiles',
           filter: `id=eq.${userId}`
+        },
+        callback
+      )
+      .subscribe()
+  },
+
+  // Subscribe to notifications
+  subscribeNotifications: (userId: string, callback: (payload: any) => void) => {
+    return supabase
+      .channel('notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${userId}`
         },
         callback
       )

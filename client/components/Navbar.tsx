@@ -1,6 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
+import NotificationCenter from "@/components/notifications/NotificationCenter";
 import {
   Moon,
   Sun,
@@ -8,8 +11,9 @@ import {
   Menu,
   X,
   Sparkles,
-  Bell,
-  BellRing,
+  Shield,
+  LogOut,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,6 +29,8 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
+  const { user, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -34,50 +40,19 @@ export default function Navbar() {
     { name: "Resources", href: "/resources" },
     { name: "Gallery", href: "/gallery" },
     { name: "Profile", href: "/profile" },
-    { name: "Admin", href: "/admin" },
+    ...(isAdmin ? [{ name: "Admin", href: "/admin" }] : []),
   ];
-
-  // Mock notifications data
-  const notifications = [
-    {
-      id: 1,
-      title: "New Event: React Workshop",
-      message:
-        "Registration is now open for the React Advanced Patterns workshop",
-      time: "2 hours ago",
-      unread: true,
-      type: "event",
-    },
-    {
-      id: 2,
-      title: "Hackathon Reminder",
-      message: "Don't forget to register for the Annual Hackathon 2024",
-      time: "1 day ago",
-      unread: true,
-      type: "reminder",
-    },
-    {
-      id: 3,
-      title: "Profile Updated",
-      message: "Your profile information has been successfully updated",
-      time: "2 days ago",
-      unread: false,
-      type: "system",
-    },
-    {
-      id: 4,
-      title: "New Resource Added",
-      message: "Python Data Science Toolkit has been added to resources",
-      time: "3 days ago",
-      unread: false,
-      type: "resource",
-    },
-  ];
-
-  const unreadCount = notifications.filter((n) => n.unread).length;
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -112,6 +87,9 @@ export default function Navbar() {
                 )}
               >
                 {item.name}
+                {item.name === "Admin" && (
+                  <Shield className="h-3 w-3 ml-1 inline" />
+                )}
                 {location.pathname === item.href && (
                   <div className="absolute inset-x-0 -bottom-0.5 h-0.5 bg-gradient-to-r from-primary/0 via-primary to-primary/0" />
                 )}
@@ -134,94 +112,71 @@ export default function Navbar() {
             </Button>
 
             {/* Notifications - shown when logged in */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="relative w-10 h-10 rounded-full hover:bg-primary/10 hover:scale-110 transition-all duration-300 group"
-                >
-                  {unreadCount > 0 ? (
-                    <BellRing className="h-5 w-5 text-primary group-hover:animate-pulse" />
-                  ) : (
-                    <Bell className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-                  )}
-                  {unreadCount > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
-                      {unreadCount}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-80 max-h-96 overflow-y-auto"
-              >
-                <DropdownMenuLabel className="flex items-center justify-between">
-                  <span>Notifications</span>
-                  {unreadCount > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {unreadCount} new
-                    </Badge>
-                  )}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {notifications.map((notification) => (
-                  <DropdownMenuItem
-                    key={notification.id}
-                    className={`flex flex-col items-start p-4 cursor-pointer ${
-                      notification.unread ? "bg-primary/5" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between w-full">
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className={`text-sm font-medium ${notification.unread ? "text-foreground" : "text-muted-foreground"}`}
-                        >
-                          {notification.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {notification.time}
-                        </p>
-                      </div>
-                      {notification.unread && (
-                        <div className="w-2 h-2 bg-primary rounded-full ml-2 mt-1 flex-shrink-0" />
-                      )}
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-center py-3">
-                  <Button variant="ghost" size="sm" className="w-full">
-                    View All Notifications
-                  </Button>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {user && <NotificationCenter />}
 
-            {/* Enhanced Auth buttons - hidden on mobile */}
+            {/* Auth buttons */}
             <div className="hidden md:flex items-center space-x-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hover:bg-primary/10 transition-all duration-300 hover:scale-105"
-                asChild
-              >
-                <Link to="/login">Login</Link>
-              </Button>
-              <Button
-                size="sm"
-                className="bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group"
-                asChild
-              >
-                <Link to="/join">
-                  <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                  Join Club
-                </Link>
-              </Button>
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                        {user.email?.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="hidden lg:inline">{user.email}</span>
+                      {isAdmin && (
+                        <Badge variant="secondary" className="text-xs">
+                          Admin
+                        </Badge>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile" className="flex items-center">
+                        <User className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="flex items-center">
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Panel
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hover:bg-primary/10 transition-all duration-300 hover:scale-105"
+                    asChild
+                  >
+                    <Link to="/login">Login</Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group"
+                    asChild
+                  >
+                    <Link to="/join">
+                      <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
+                      Join Club
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
 
             {/* Enhanced Mobile menu button */}
@@ -257,63 +212,49 @@ export default function Navbar() {
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  {item.name}
+                  <div className="flex items-center">
+                    {item.name}
+                    {item.name === "Admin" && (
+                      <Shield className="h-4 w-4 ml-2" />
+                    )}
+                  </div>
                 </Link>
               ))}
 
-              {/* Mobile Notifications */}
-              <div className="px-4 pt-4 border-t">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-foreground">
-                    Notifications
-                  </span>
-                  {unreadCount > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {unreadCount} new
-                    </Badge>
-                  )}
-                </div>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {notifications.slice(0, 2).map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-2 rounded-lg text-xs ${
-                        notification.unread ? "bg-primary/10" : "bg-muted/50"
-                      }`}
-                    >
-                      <p className="font-medium text-foreground">
-                        {notification.title}
-                      </p>
-                      <p className="text-muted-foreground mt-1">
-                        {notification.time}
-                      </p>
-                    </div>
-                  ))}
-                  <Button variant="ghost" size="sm" className="w-full text-xs">
-                    View All
-                  </Button>
-                </div>
-              </div>
-
+              {/* Mobile Auth */}
               <div className="flex space-x-3 pt-4 px-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-1 hover:bg-primary/10"
-                  asChild
-                >
-                  <Link to="/login">Login</Link>
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary shadow-lg"
-                  asChild
-                >
-                  <Link to="/join">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Join Club
-                  </Link>
-                </Button>
+                {user ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 hover:bg-primary/10"
+                      asChild
+                    >
+                      <Link to="/login">Login</Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary shadow-lg"
+                      asChild
+                    >
+                      <Link to="/join">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Join Club
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

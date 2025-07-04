@@ -6,8 +6,6 @@ import {
   EyeOff,
   User,
   Phone,
-  MapPin,
-  Calendar,
   Github,
   Chrome,
   ArrowRight,
@@ -30,10 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Join() {
+  const { signUp, signInWithProvider, user } = useAuth();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
@@ -47,8 +48,6 @@ export default function Join() {
     branch: "",
     rollNumber: "",
     // Step 3: Preferences
-    interests: [] as string[],
-    experience: "",
     agreeToTerms: false,
     agreeToUpdates: false,
   });
@@ -57,18 +56,12 @@ export default function Join() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const interests = [
-    "Web Development",
-    "Mobile Development",
-    "Data Science",
-    "Machine Learning",
-    "UI/UX Design",
-    "DevOps",
-    "Game Development",
-    "Cybersecurity",
-    "Cloud Computing",
-    "Blockchain",
-  ];
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/profile');
+    }
+  }, [user, navigate]);
 
   const validateStep = (step: number) => {
     const newErrors: { [key: string]: string } = {};
@@ -108,12 +101,6 @@ export default function Join() {
     }
 
     if (step === 3) {
-      if (formData.interests.length === 0) {
-        newErrors.interests = "Please select at least one interest";
-      }
-      if (!formData.experience) {
-        newErrors.experience = "Please select your experience level";
-      }
       if (!formData.agreeToTerms) {
         newErrors.agreeToTerms = "You must agree to the terms and conditions";
       }
@@ -137,27 +124,37 @@ export default function Join() {
   const handleSubmit = async () => {
     if (validateStep(3)) {
       setIsLoading(true);
-      // Simulate API call
-      setTimeout(() => {
+      try {
+        const { error } = await signUp(formData.email, formData.password, {
+          full_name: formData.fullName,
+          phone: formData.phone,
+          year: formData.year,
+          branch: formData.branch,
+          roll_number: formData.rollNumber,
+        });
+
+        if (error) {
+          setErrors({ general: error.message });
+        } else {
+          navigate('/profile');
+        }
+      } catch (error) {
+        setErrors({ general: 'Registration failed. Please try again.' });
+      } finally {
         setIsLoading(false);
-        console.log("Registration data:", formData);
-        // In a real app, this would create the account
-      }, 2000);
+      }
     }
   };
 
-  const handleInterestToggle = (interest: string) => {
-    setFormData({
-      ...formData,
-      interests: formData.interests.includes(interest)
-        ? formData.interests.filter((i) => i !== interest)
-        : [...formData.interests, interest],
-    });
-  };
-
-  const handleSocialSignup = (provider: string) => {
-    console.log(`Sign up with ${provider}`);
-    // In a real app, this would handle social authentication
+  const handleSocialSignup = async (provider: 'github' | 'google') => {
+    try {
+      const { error } = await signInWithProvider(provider);
+      if (error) {
+        setErrors({ general: error.message });
+      }
+    } catch (error) {
+      setErrors({ general: 'Social signup failed' });
+    }
   };
 
   return (
@@ -228,6 +225,13 @@ export default function Join() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Error Display */}
+            {errors.general && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <p className="text-sm text-red-600 dark:text-red-400">{errors.general}</p>
+              </div>
+            )}
+
             {/* Step 1: Basic Information */}
             {currentStep === 1 && (
               <div className="space-y-6">
@@ -496,65 +500,6 @@ export default function Join() {
             {/* Step 3: Preferences */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                {/* Interests */}
-                <div className="space-y-3">
-                  <Label>Areas of Interest</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {interests.map((interest) => (
-                      <Button
-                        key={interest}
-                        variant={
-                          formData.interests.includes(interest)
-                            ? "default"
-                            : "outline"
-                        }
-                        size="sm"
-                        className="text-xs justify-start"
-                        onClick={() => handleInterestToggle(interest)}
-                      >
-                        {interest}
-                      </Button>
-                    ))}
-                  </div>
-                  {errors.interests && (
-                    <p className="text-sm text-red-500">{errors.interests}</p>
-                  )}
-                </div>
-
-                {/* Experience Level */}
-                <div className="space-y-2">
-                  <Label>Experience Level</Label>
-                  <Select
-                    value={formData.experience}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, experience: value })
-                    }
-                  >
-                    <SelectTrigger
-                      className={errors.experience ? "border-red-500" : ""}
-                    >
-                      <SelectValue placeholder="Select your experience level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Beginner">
-                        Beginner (Just starting)
-                      </SelectItem>
-                      <SelectItem value="Intermediate">
-                        Intermediate (Some experience)
-                      </SelectItem>
-                      <SelectItem value="Advanced">
-                        Advanced (Experienced)
-                      </SelectItem>
-                      <SelectItem value="Expert">
-                        Expert (Professional level)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.experience && (
-                    <p className="text-sm text-red-500">{errors.experience}</p>
-                  )}
-                </div>
-
                 {/* Terms and Conditions */}
                 <div className="space-y-4">
                   <div className="flex items-start space-x-2">

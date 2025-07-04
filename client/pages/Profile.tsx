@@ -1,9 +1,13 @@
+import { useAuth } from "@/hooks/useAuth";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/supabase";
+import ProfileImageUpload from "@/components/profile/ProfileImageUpload";
+import TodoList from "@/components/todos/TodoList";
 import {
   User,
   Settings,
-  Shield,
   Edit,
-  Camera,
   Trophy,
   Code,
   Star,
@@ -20,155 +24,92 @@ import {
   TrendingUp,
   Clock,
   Book,
+  Bell,
+  BellRing,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
-
-// Mock user data
-const mockUserData = {
-  id: "user123",
-  name: "Alex Johnson",
-  username: "alexj_dev",
-  email: "alex.johnson@psit.ac.in",
-  phone: "+91 98765 43210",
-  bio: "Full-stack developer passionate about creating innovative solutions. Active member of HackOrbit with a focus on React and Node.js development.",
-  avatar: "AJ",
-  joinDate: "January 2024",
-  location: "Kanpur, India",
-  year: "3rd Year",
-  branch: "Computer Science Engineering",
-  rollNumber: "2022CSE123",
-  level: "Expert",
-  points: 2580,
-  rank: 1,
-  streak: 15,
-  projects: 12,
-  contributions: 89,
-  achievements: [
-    {
-      id: 1,
-      title: "Top Contributor",
-      icon: "🏆",
-      description: "Ranked #1 in club contributions",
-    },
-    {
-      id: 2,
-      title: "Streak Master",
-      icon: "🔥",
-      description: "Maintained 15-day active streak",
-    },
-    {
-      id: 3,
-      title: "Code Ninja",
-      icon: "💻",
-      description: "Completed 50+ coding challenges",
-    },
-    {
-      id: 4,
-      title: "Project Leader",
-      icon: "🎯",
-      description: "Led 5 successful projects",
-    },
-    {
-      id: 5,
-      title: "Mentor",
-      icon: "👨‍🏫",
-      description: "Helped 20+ students learn coding",
-    },
-  ],
-  skills: [
-    "React",
-    "Node.js",
-    "TypeScript",
-    "Python",
-    "MongoDB",
-    "Git",
-    "Docker",
-    "AWS",
-  ],
-  socialLinks: {
-    github: "https://github.com/alexj_dev",
-    linkedin: "https://linkedin.com/in/alexjohnson",
-    website: "https://alexjohnson.dev",
-  },
-  recentActivity: [
-    {
-      id: 1,
-      type: "project",
-      title: "Completed E-commerce Platform",
-      date: "2024-03-15",
-      points: 100,
-    },
-    {
-      id: 2,
-      type: "contribution",
-      title: "Fixed authentication bug",
-      date: "2024-03-14",
-      points: 25,
-    },
-    {
-      id: 3,
-      type: "achievement",
-      title: "Earned 'Top Contributor' badge",
-      date: "2024-03-13",
-      points: 50,
-    },
-    {
-      id: 4,
-      type: "workshop",
-      title: "Attended React Workshop",
-      date: "2024-03-10",
-      points: 20,
-    },
-    {
-      id: 5,
-      type: "challenge",
-      title: "Won coding challenge #47",
-      date: "2024-03-08",
-      points: 30,
-    },
-  ],
-  projectsCompleted: [
-    {
-      id: 1,
-      title: "E-commerce Platform",
-      description: "Full-stack e-commerce solution with React and Node.js",
-      tech: ["React", "Node.js", "MongoDB"],
-      status: "Completed",
-      date: "2024-03-15",
-    },
-    {
-      id: 2,
-      title: "Task Management App",
-      description: "Collaborative task management with real-time updates",
-      tech: ["React", "Socket.io", "Express"],
-      status: "Completed",
-      date: "2024-02-28",
-    },
-    {
-      id: 3,
-      title: "Weather Dashboard",
-      description: "Real-time weather application with charts",
-      tech: ["React", "Chart.js", "API"],
-      status: "In Progress",
-      date: "2024-03-01",
-    },
-  ],
-};
 
 export default function Profile() {
+  const { user } = useAuth();
+  const { notifications, unreadCount } = useNotifications();
+  const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedData, setEditedData] = useState(mockUserData);
+  const [editedData, setEditedData] = useState<any>({});
   const [activeTab, setActiveTab] = useState("overview");
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    // In a real app, this would save to the backend
-    setIsEditing(false);
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await db.profiles.get(user.id);
+      if (error) throw error;
+      
+      if (data) {
+        setProfile(data);
+        setEditedData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await db.profiles.update(user.id, editedData);
+      if (error) throw error;
+      
+      setProfile(data);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile');
+    }
+  };
+
+  const handleAvatarUpload = (url: string) => {
+    setProfile({ ...profile, avatar_url: url });
+    setEditedData({ ...editedData, avatar_url: url });
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-6 text-center">
+            <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Authentication Required</h2>
+            <p className="text-muted-foreground">Please sign in to view your profile.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -182,23 +123,6 @@ export default function Profile() {
         return "bg-gradient-to-r from-orange-500 to-orange-600 text-white";
       default:
         return "bg-primary text-primary-foreground";
-    }
-  };
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "project":
-        return <Code className="h-4 w-4 text-blue-500" />;
-      case "contribution":
-        return <GitBranch className="h-4 w-4 text-green-500" />;
-      case "achievement":
-        return <Award className="h-4 w-4 text-yellow-500" />;
-      case "workshop":
-        return <Book className="h-4 w-4 text-purple-500" />;
-      case "challenge":
-        return <Target className="h-4 w-4 text-red-500" />;
-      default:
-        return <Trophy className="h-4 w-4 text-primary" />;
     }
   };
 
@@ -219,17 +143,10 @@ export default function Profile() {
               <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                 {/* Avatar */}
                 <div className="relative">
-                  <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center text-white text-2xl md:text-4xl font-bold">
-                    {editedData.avatar}
-                  </div>
-                  {isEditing && (
-                    <Button
-                      size="sm"
-                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <ProfileImageUpload
+                    currentAvatarUrl={profile?.avatar_url}
+                    onUploadComplete={handleAvatarUpload}
+                  />
                 </div>
 
                 {/* Basic Info */}
@@ -237,14 +154,14 @@ export default function Profile() {
                   {isEditing ? (
                     <div className="space-y-4">
                       <Input
-                        value={editedData.name}
+                        value={editedData.full_name || ''}
                         onChange={(e) =>
-                          setEditedData({ ...editedData, name: e.target.value })
+                          setEditedData({ ...editedData, full_name: e.target.value })
                         }
                         placeholder="Full Name"
                       />
                       <Input
-                        value={editedData.username}
+                        value={editedData.username || ''}
                         onChange={(e) =>
                           setEditedData({
                             ...editedData,
@@ -254,7 +171,7 @@ export default function Profile() {
                         placeholder="Username"
                       />
                       <Textarea
-                        value={editedData.bio}
+                        value={editedData.bio || ''}
                         onChange={(e) =>
                           setEditedData({ ...editedData, bio: e.target.value })
                         }
@@ -265,13 +182,15 @@ export default function Profile() {
                   ) : (
                     <>
                       <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-                        {editedData.name}
+                        {profile?.full_name || user.email}
                       </h1>
-                      <p className="text-muted-foreground mb-1">
-                        @{editedData.username}
-                      </p>
+                      {profile?.username && (
+                        <p className="text-muted-foreground mb-1">
+                          @{profile.username}
+                        </p>
+                      )}
                       <p className="text-sm md:text-base text-muted-foreground mb-4 max-w-2xl">
-                        {editedData.bio}
+                        {profile?.bio || 'Welcome to HackOrbit! Update your profile to tell others about yourself.'}
                       </p>
                     </>
                   )}
@@ -280,15 +199,7 @@ export default function Profile() {
                   <div className="flex flex-wrap gap-4 md:gap-6">
                     <div className="text-center">
                       <div className="text-xl md:text-2xl font-bold text-primary">
-                        #{editedData.rank}
-                      </div>
-                      <div className="text-xs md:text-sm text-muted-foreground">
-                        Rank
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl md:text-2xl font-bold text-primary">
-                        {editedData.points}
+                        {profile?.points || 0}
                       </div>
                       <div className="text-xs md:text-sm text-muted-foreground">
                         Points
@@ -296,18 +207,18 @@ export default function Profile() {
                     </div>
                     <div className="text-center">
                       <div className="text-xl md:text-2xl font-bold text-primary">
-                        {editedData.projects}
+                        {profile?.streak || 0}🔥
                       </div>
                       <div className="text-xs md:text-sm text-muted-foreground">
-                        Projects
+                        Streak
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xl md:text-2xl font-bold text-primary">
-                        {editedData.streak}🔥
+                        {unreadCount}
                       </div>
                       <div className="text-xs md:text-sm text-muted-foreground">
-                        Streak
+                        Notifications
                       </div>
                     </div>
                   </div>
@@ -316,9 +227,9 @@ export default function Profile() {
                 {/* Actions */}
                 <div className="flex flex-col gap-2 w-full md:w-auto">
                   <Badge
-                    className={`${getLevelColor(editedData.level)} justify-center md:justify-start`}
+                    className={`${getLevelColor(profile?.level || 'Beginner')} justify-center md:justify-start`}
                   >
-                    {editedData.level}
+                    {profile?.level || 'Beginner'}
                   </Badge>
                   {isEditing ? (
                     <div className="flex gap-2">
@@ -348,9 +259,8 @@ export default function Profile() {
           <div className="flex flex-wrap gap-2 mb-8">
             {[
               { id: "overview", label: "Overview", icon: User },
-              { id: "activity", label: "Activity", icon: TrendingUp },
-              { id: "projects", label: "Projects", icon: Code },
-              { id: "achievements", label: "Achievements", icon: Trophy },
+              { id: "todos", label: "My Todos", icon: Target },
+              { id: "notifications", label: "Notifications", icon: Bell },
               { id: "settings", label: "Settings", icon: Settings },
             ].map((tab) => (
               <Button
@@ -362,6 +272,11 @@ export default function Profile() {
               >
                 <tab.icon className="h-4 w-4 mr-2" />
                 {tab.label}
+                {tab.id === "notifications" && unreadCount > 0 && (
+                  <Badge className="ml-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
+                    {unreadCount}
+                  </Badge>
+                )}
               </Button>
             ))}
           </div>
@@ -386,7 +301,7 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.email}</span>
+                          <span className="text-sm">{user.email}</span>
                         </div>
                       </div>
                       <div>
@@ -395,7 +310,7 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.phone}</span>
+                          <span className="text-sm">{profile?.phone || 'Not provided'}</span>
                         </div>
                       </div>
                       <div>
@@ -404,7 +319,7 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.location}</span>
+                          <span className="text-sm">{profile?.location || 'Not provided'}</span>
                         </div>
                       </div>
                       <div>
@@ -413,7 +328,9 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.joinDate}</span>
+                          <span className="text-sm">
+                            {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
+                          </span>
                         </div>
                       </div>
                       <div>
@@ -422,7 +339,7 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <Book className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.year}</span>
+                          <span className="text-sm">{profile?.year || 'Not provided'}</span>
                         </div>
                       </div>
                       <div>
@@ -431,7 +348,7 @@ export default function Profile() {
                         </label>
                         <div className="flex items-center mt-1">
                           <Code className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{editedData.branch}</span>
+                          <span className="text-sm">{profile?.branch || 'Not provided'}</span>
                         </div>
                       </div>
                     </div>
@@ -445,11 +362,17 @@ export default function Profile() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {editedData.skills.map((skill) => (
-                        <Badge key={skill} variant="secondary">
-                          {skill}
-                        </Badge>
-                      ))}
+                      {profile?.skills && profile.skills.length > 0 ? (
+                        profile.skills.map((skill: string) => (
+                          <Badge key={skill} variant="secondary">
+                            {skill}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No skills added yet. Edit your profile to add skills.
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -463,33 +386,54 @@ export default function Profile() {
                     <CardTitle>Social Links</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <a
-                      href={editedData.socialLinks.github}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
-                    >
-                      <Github className="h-5 w-5" />
-                      <span className="text-sm">GitHub Profile</span>
-                    </a>
-                    <a
-                      href={editedData.socialLinks.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
-                    >
-                      <Linkedin className="h-5 w-5" />
-                      <span className="text-sm">LinkedIn</span>
-                    </a>
-                    <a
-                      href={editedData.socialLinks.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
-                    >
-                      <Globe className="h-5 w-5" />
-                      <span className="text-sm">Personal Website</span>
-                    </a>
+                    {profile?.github_url ? (
+                      <a
+                        href={profile.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
+                      >
+                        <Github className="h-5 w-5" />
+                        <span className="text-sm">GitHub Profile</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 opacity-50">
+                        <Github className="h-5 w-5" />
+                        <span className="text-sm">GitHub not linked</span>
+                      </div>
+                    )}
+                    {profile?.linkedin_url ? (
+                      <a
+                        href={profile.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
+                      >
+                        <Linkedin className="h-5 w-5" />
+                        <span className="text-sm">LinkedIn</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 opacity-50">
+                        <Linkedin className="h-5 w-5" />
+                        <span className="text-sm">LinkedIn not linked</span>
+                      </div>
+                    )}
+                    {profile?.website_url ? (
+                      <a
+                        href={profile.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors"
+                      >
+                        <Globe className="h-5 w-5" />
+                        <span className="text-sm">Personal Website</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 opacity-50">
+                        <Globe className="h-5 w-5" />
+                        <span className="text-sm">Website not linked</span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -501,26 +445,26 @@ export default function Profile() {
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        Contributions
+                        Level
                       </span>
                       <span className="font-medium">
-                        {editedData.contributions}
+                        {profile?.level || 'Beginner'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        Achievements
+                        Points
                       </span>
                       <span className="font-medium">
-                        {editedData.achievements.length}
+                        {profile?.points || 0}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        Skills
+                        Streak
                       </span>
                       <span className="font-medium">
-                        {editedData.skills.length}
+                        {profile?.streak || 0} days
                       </span>
                     </div>
                   </CardContent>
@@ -529,92 +473,67 @@ export default function Profile() {
             </div>
           )}
 
-          {activeTab === "activity" && (
-            <Card className="bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <TrendingUp className="h-5 w-5 mr-2" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {editedData.recentActivity.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="flex items-center gap-4 p-4 rounded-lg bg-background/50"
-                    >
-                      {getActivityIcon(activity.type)}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm md:text-base">
-                          {activity.title}
-                        </p>
-                        <p className="text-xs md:text-sm text-muted-foreground">
-                          {new Date(activity.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        +{activity.points} pts
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {activeTab === "todos" && <TodoList />}
 
-          {activeTab === "projects" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {editedData.projectsCompleted.map((project) => (
-                <Card key={project.id} className="bg-card/50 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{project.title}</CardTitle>
-                    <Badge
-                      variant={
-                        project.status === "Completed" ? "default" : "secondary"
-                      }
-                      className="w-fit"
-                    >
-                      {project.status}
-                    </Badge>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {project.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {project.tech.map((tech) => (
-                        <Badge key={tech} variant="outline" className="text-xs">
-                          {tech}
-                        </Badge>
+          {activeTab === "notifications" && (
+            <div className="space-y-6">
+              <Card className="bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Bell className="h-5 w-5 mr-2" />
+                      Your Notifications
+                    </div>
+                    {unreadCount > 0 && (
+                      <Badge className="bg-red-500 text-white">
+                        {unreadCount} unread
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No notifications yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {notifications.slice(0, 10).map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-4 rounded-lg border-l-4 ${
+                            notification.read ? 'bg-muted/30' : 'bg-background'
+                          } ${
+                            notification.type === 'event' ? 'border-l-blue-500' :
+                            notification.type === 'success' ? 'border-l-green-500' :
+                            notification.type === 'warning' ? 'border-l-yellow-500' :
+                            notification.type === 'error' ? 'border-l-red-500' :
+                            'border-l-gray-500'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className={`font-medium ${notification.read ? 'text-muted-foreground' : 'text-foreground'}`}>
+                                {notification.title}
+                              </h4>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {new Date(notification.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            {!notification.read && (
+                              <div className="w-2 h-2 bg-primary rounded-full ml-4 mt-2" />
+                            )}
+                          </div>
+                        </div>
                       ))}
                     </div>
-                    <div className="flex items-center text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      {new Date(project.date).toLocaleDateString()}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {activeTab === "achievements" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {editedData.achievements.map((achievement) => (
-                <Card
-                  key={achievement.id}
-                  className="bg-card/50 backdrop-blur-sm text-center p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="text-4xl mb-4">{achievement.icon}</div>
-                  <h3 className="font-semibold text-lg mb-2">
-                    {achievement.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {achievement.description}
-                  </p>
-                </Card>
-              ))}
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -662,7 +581,7 @@ export default function Profile() {
                         </Button>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">Achievement Alerts</span>
+                        <span className="text-sm">Real-time Notifications</span>
                         <Button variant="outline" size="sm">
                           Enabled
                         </Button>
