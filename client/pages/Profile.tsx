@@ -26,12 +26,24 @@ import {
   Book,
   Bell,
   BellRing,
+  Save,
+  X,
+  Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -41,6 +53,8 @@ export default function Profile() {
   const [editedData, setEditedData] = useState<any>({});
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newSkill, setNewSkill] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -53,14 +67,46 @@ export default function Profile() {
     
     try {
       const { data, error } = await db.profiles.get(user.id);
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
       
       if (data) {
         setProfile(data);
         setEditedData(data);
+      } else {
+        // Profile doesn't exist, create a basic one
+        const newProfile = {
+          id: user.id,
+          full_name: user.user_metadata?.full_name || '',
+          avatar_url: user.user_metadata?.avatar_url || null,
+          bio: '',
+          username: '',
+          phone: '',
+          year: '',
+          branch: '',
+          roll_number: '',
+          location: 'Kanpur, India',
+          github_url: '',
+          linkedin_url: '',
+          website_url: '',
+          skills: [],
+          level: 'Beginner',
+          points: 0,
+          streak: 0,
+        };
+        
+        const { data: createdProfile, error: createError } = await db.profiles.update(user.id, newProfile);
+        if (createError) {
+          console.error('Error creating profile:', createError);
+        } else {
+          setProfile(createdProfile || newProfile);
+          setEditedData(createdProfile || newProfile);
+        }
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
+      toast.error('Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -69,21 +115,53 @@ export default function Profile() {
   const handleSave = async () => {
     if (!user) return;
 
+    setSaving(true);
     try {
       const { data, error } = await db.profiles.update(user.id, editedData);
       if (error) throw error;
       
       setProfile(data);
       setIsEditing(false);
+      toast.success('Profile updated successfully!', {
+        description: 'Your changes have been saved.',
+      });
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile');
+      toast.error('Failed to update profile', {
+        description: 'Please try again.',
+      });
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setEditedData(profile);
+    setIsEditing(false);
+    setNewSkill("");
   };
 
   const handleAvatarUpload = (url: string) => {
     setProfile({ ...profile, avatar_url: url });
     setEditedData({ ...editedData, avatar_url: url });
+    toast.success('Profile picture updated!');
+  };
+
+  const addSkill = () => {
+    if (newSkill.trim() && !editedData.skills?.includes(newSkill.trim())) {
+      setEditedData({
+        ...editedData,
+        skills: [...(editedData.skills || []), newSkill.trim()]
+      });
+      setNewSkill("");
+    }
+  };
+
+  const removeSkill = (skillToRemove: string) => {
+    setEditedData({
+      ...editedData,
+      skills: editedData.skills?.filter((skill: string) => skill !== skillToRemove) || []
+    });
   };
 
   if (!user) {
@@ -153,31 +231,42 @@ export default function Profile() {
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
                     <div className="space-y-4">
-                      <Input
-                        value={editedData.full_name || ''}
-                        onChange={(e) =>
-                          setEditedData({ ...editedData, full_name: e.target.value })
-                        }
-                        placeholder="Full Name"
-                      />
-                      <Input
-                        value={editedData.username || ''}
-                        onChange={(e) =>
-                          setEditedData({
-                            ...editedData,
-                            username: e.target.value,
-                          })
-                        }
-                        placeholder="Username"
-                      />
-                      <Textarea
-                        value={editedData.bio || ''}
-                        onChange={(e) =>
-                          setEditedData({ ...editedData, bio: e.target.value })
-                        }
-                        placeholder="Bio"
-                        rows={3}
-                      />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="full_name">Full Name</Label>
+                          <Input
+                            id="full_name"
+                            value={editedData.full_name || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, full_name: e.target.value })
+                            }
+                            placeholder="Enter your full name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="username">Username</Label>
+                          <Input
+                            id="username"
+                            value={editedData.username || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, username: e.target.value })
+                            }
+                            placeholder="Choose a username"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="bio">Bio</Label>
+                        <Textarea
+                          id="bio"
+                          value={editedData.bio || ''}
+                          onChange={(e) =>
+                            setEditedData({ ...editedData, bio: e.target.value })
+                          }
+                          placeholder="Tell us about yourself..."
+                          rows={3}
+                        />
+                      </div>
                     </div>
                   ) : (
                     <>
@@ -233,14 +322,26 @@ export default function Profile() {
                   </Badge>
                   {isEditing ? (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={handleSave}>
-                        Save
+                      <Button size="sm" onClick={handleSave} disabled={saving}>
+                        {saving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save
+                          </>
+                        )}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setIsEditing(false)}
+                        onClick={handleCancel}
+                        disabled={saving}
                       >
+                        <X className="h-4 w-4 mr-2" />
                         Cancel
                       </Button>
                     </div>
@@ -294,64 +395,184 @@ export default function Profile() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Email
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{user.email}</span>
+                    {isEditing ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="phone">Phone</Label>
+                          <Input
+                            id="phone"
+                            value={editedData.phone || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, phone: e.target.value })
+                            }
+                            placeholder="+91 98765 43210"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="location">Location</Label>
+                          <Input
+                            id="location"
+                            value={editedData.location || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, location: e.target.value })
+                            }
+                            placeholder="Your location"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="year">Year</Label>
+                          <Select
+                            value={editedData.year || ''}
+                            onValueChange={(value) =>
+                              setEditedData({ ...editedData, year: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select year" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1st Year">1st Year</SelectItem>
+                              <SelectItem value="2nd Year">2nd Year</SelectItem>
+                              <SelectItem value="3rd Year">3rd Year</SelectItem>
+                              <SelectItem value="4th Year">4th Year</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="branch">Branch</Label>
+                          <Select
+                            value={editedData.branch || ''}
+                            onValueChange={(value) =>
+                              setEditedData({ ...editedData, branch: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Computer Science Engineering">
+                                Computer Science Engineering
+                              </SelectItem>
+                              <SelectItem value="Information Technology">
+                                Information Technology
+                              </SelectItem>
+                              <SelectItem value="Electronics & Communication">
+                                Electronics & Communication
+                              </SelectItem>
+                              <SelectItem value="Mechanical Engineering">
+                                Mechanical Engineering
+                              </SelectItem>
+                              <SelectItem value="Civil Engineering">
+                                Civil Engineering
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="roll_number">Roll Number</Label>
+                          <Input
+                            id="roll_number"
+                            value={editedData.roll_number || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, roll_number: e.target.value })
+                            }
+                            placeholder="2022CSE123"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="github_url">GitHub URL</Label>
+                          <Input
+                            id="github_url"
+                            value={editedData.github_url || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, github_url: e.target.value })
+                            }
+                            placeholder="https://github.com/username"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="linkedin_url">LinkedIn URL</Label>
+                          <Input
+                            id="linkedin_url"
+                            value={editedData.linkedin_url || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, linkedin_url: e.target.value })
+                            }
+                            placeholder="https://linkedin.com/in/username"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="website_url">Website URL</Label>
+                          <Input
+                            id="website_url"
+                            value={editedData.website_url || ''}
+                            onChange={(e) =>
+                              setEditedData({ ...editedData, website_url: e.target.value })
+                            }
+                            placeholder="https://yourwebsite.com"
+                          />
                         </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Phone
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{profile?.phone || 'Not provided'}</span>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Email
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">{user.email}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Phone
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">{profile?.phone || 'Not provided'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Location
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">{profile?.location || 'Not provided'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Member Since
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">
+                              {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Year
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <Book className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">{profile?.year || 'Not provided'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">
+                            Branch
+                          </label>
+                          <div className="flex items-center mt-1">
+                            <Code className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span className="text-sm">{profile?.branch || 'Not provided'}</span>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Location
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{profile?.location || 'Not provided'}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Member Since
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">
-                            {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Year
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <Book className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{profile?.year || 'Not provided'}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Branch
-                        </label>
-                        <div className="flex items-center mt-1">
-                          <Code className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="text-sm">{profile?.branch || 'Not provided'}</span>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -361,19 +582,47 @@ export default function Profile() {
                     <CardTitle>Skills & Technologies</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {profile?.skills && profile.skills.length > 0 ? (
-                        profile.skills.map((skill: string) => (
-                          <Badge key={skill} variant="secondary">
-                            {skill}
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No skills added yet. Edit your profile to add skills.
-                        </p>
-                      )}
-                    </div>
+                    {isEditing ? (
+                      <div className="space-y-4">
+                        <div className="flex gap-2">
+                          <Input
+                            value={newSkill}
+                            onChange={(e) => setNewSkill(e.target.value)}
+                            placeholder="Add a skill..."
+                            onKeyPress={(e) => e.key === 'Enter' && addSkill()}
+                          />
+                          <Button onClick={addSkill} size="sm">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {editedData.skills?.map((skill: string) => (
+                            <Badge
+                              key={skill}
+                              variant="secondary"
+                              className="cursor-pointer hover:bg-red-100 hover:text-red-800"
+                              onClick={() => removeSkill(skill)}
+                            >
+                              {skill} ×
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {profile?.skills && profile.skills.length > 0 ? (
+                          profile.skills.map((skill: string) => (
+                            <Badge key={skill} variant="secondary">
+                              {skill}
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            No skills added yet. Edit your profile to add skills.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

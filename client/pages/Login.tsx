@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export default function Login() {
   const { signIn, signInWithProvider, user } = useAuth();
@@ -40,39 +41,48 @@ export default function Login() {
     }
   }, [user, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setErrors({});
-
-    // Basic validation
+  const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
+    
     if (!formData.email) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Email is invalid";
     }
+    
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      setIsLoading(false);
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error("Please fix the errors below");
       return;
     }
 
+    setIsLoading(true);
+    setErrors({});
+
     try {
-      const { error } = await signIn(formData.email, formData.password);
-      if (error) {
-        setErrors({ general: error.message });
-      } else {
+      const { data, error } = await signIn(formData.email, formData.password);
+      
+      if (!error && data?.user) {
+        // Success is handled by the auth context
         navigate('/profile');
       }
     } catch (error) {
-      setErrors({ general: 'An unexpected error occurred' });
+      console.error('Login error:', error);
+      toast.error('Login failed', {
+        description: 'Please try again'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -81,11 +91,11 @@ export default function Login() {
   const handleSocialLogin = async (provider: 'github' | 'google') => {
     try {
       const { error } = await signInWithProvider(provider);
-      if (error) {
-        setErrors({ general: error.message });
+      if (!error) {
+        // Success will be handled by auth context
       }
     } catch (error) {
-      setErrors({ general: 'Social login failed' });
+      console.error('Social login error:', error);
     }
   };
 
@@ -124,13 +134,6 @@ export default function Login() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Error Display */}
-            {errors.general && (
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{errors.general}</p>
-              </div>
-            )}
-
             {/* Social Login */}
             <div className="space-y-3">
               <Button
