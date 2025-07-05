@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db, realtime, supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 
 export interface Notification {
@@ -37,9 +37,14 @@ export function useNotifications() {
           .order('created_at', { ascending: false })
           .limit(50)
 
-        if (error) throw error
-        setNotifications(data || [])
+        if (error) {
+          console.error('Error fetching notifications:', error)
+          setError(error.message)
+        } else {
+          setNotifications(data || [])
+        }
       } catch (err) {
+        console.error('Error fetching notifications:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setLoading(false)
@@ -106,7 +111,10 @@ export function useNotifications() {
         .update({ read: true })
         .eq('id', notificationId)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error marking notification as read:', error)
+        throw error
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark notification as read')
       throw err
@@ -123,7 +131,10 @@ export function useNotifications() {
         .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
         .eq('read', false)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error marking all notifications as read:', error)
+        throw error
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark all notifications as read')
       throw err
@@ -137,7 +148,10 @@ export function useNotifications() {
         .delete()
         .eq('id', notificationId)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error deleting notification:', error)
+        throw error
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete notification')
       throw err

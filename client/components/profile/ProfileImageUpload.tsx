@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { storage, db } from '@/lib/supabase'
+import { storage } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Camera, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ProfileImageUploadProps {
   currentAvatarUrl?: string
@@ -43,13 +44,16 @@ export default function ProfileImageUpload({
       // Upload to Supabase Storage
       const avatarUrl = await storage.uploadAvatar(user.id, file)
 
-      // Update user profile with new avatar URL
-      await db.profiles.update(user.id, { avatar_url: avatarUrl })
-
       onUploadComplete?.(avatarUrl)
+      
+      toast.success('Profile picture updated!', {
+        description: 'Your new profile picture has been uploaded successfully.'
+      })
     } catch (error) {
       console.error('Error uploading avatar:', error)
-      alert(error instanceof Error ? error.message : 'Error uploading image')
+      toast.error('Upload failed', {
+        description: error instanceof Error ? error.message : 'Error uploading image'
+      })
     } finally {
       setUploading(false)
     }

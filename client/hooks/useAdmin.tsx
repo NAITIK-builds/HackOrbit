@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
+import { toast } from 'sonner'
 
 export interface AdminUser {
   id: string
@@ -34,7 +35,7 @@ export function useAdmin() {
           .single()
 
         if (error && error.code !== 'PGRST116') {
-          throw error
+          console.error('Error checking admin status:', error)
         }
 
         if (data) {
@@ -73,8 +74,16 @@ export function useAdmin() {
       })
 
       if (error) throw error
+      
+      toast.success('Notification sent to all users!', {
+        description: `"${title}" has been delivered to all members.`
+      })
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : 'Failed to send notification')
+      console.error('Error sending notification to all:', err)
+      toast.error('Failed to send notification', {
+        description: err instanceof Error ? err.message : 'Please try again'
+      })
+      throw err
     }
   }
 
@@ -97,8 +106,16 @@ export function useAdmin() {
       })
 
       if (error) throw error
+      
+      toast.success('Notification sent!', {
+        description: `"${title}" has been delivered to the user.`
+      })
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : 'Failed to send notification')
+      console.error('Error sending notification to user:', err)
+      toast.error('Failed to send notification', {
+        description: err instanceof Error ? err.message : 'Please try again'
+      })
+      throw err
     }
   }
 
