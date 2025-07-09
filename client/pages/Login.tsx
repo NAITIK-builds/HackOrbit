@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   LogIn,
   Mail,
   Lock,
@@ -22,6 +23,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+
 export default function Login() {
   const { signIn, signInWithProvider, user } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export default function Login() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Redirect if already logged in
@@ -89,13 +92,25 @@ export default function Login() {
   };
 
   const handleSocialLogin = async (provider: 'github' | 'google') => {
+    setSocialLoading(provider);
     try {
       const { error } = await signInWithProvider(provider);
-      if (!error) {
+      if (error) {
+        // Error is already handled in the hook with toast
+        console.error(`${provider} login error:`, error);
+      } else {
         // Success will be handled by auth context
+        toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login initiated`, {
+          description: 'Please complete the authentication in the popup window.'
+        });
       }
     } catch (error) {
       console.error('Social login error:', error);
+      toast.error(`${provider} login failed`, {
+        description: 'Please try again or use email/password login.'
+      });
+    } finally {
+      setSocialLoading(null);
     }
   };
 
@@ -137,20 +152,32 @@ export default function Login() {
             {/* Social Login */}
             <div className="space-y-3">
               <Button
+                type="button"
                 variant="outline"
                 className="w-full"
                 onClick={() => handleSocialLogin("google")}
+                disabled={socialLoading !== null}
               >
-                <Chrome className="h-4 w-4 mr-2" />
-                Continue with Google
+                {socialLoading === 'google' ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                ) : (
+                  <Chrome className="h-4 w-4 mr-2" />
+                )}
+                {socialLoading === 'google' ? 'Connecting...' : 'Continue with Google'}
               </Button>
               <Button
+                type="button"
                 variant="outline"
                 className="w-full"
                 onClick={() => handleSocialLogin("github")}
+                disabled={socialLoading !== null}
               >
-                <Github className="h-4 w-4 mr-2" />
-                Continue with GitHub
+                {socialLoading === 'github' ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                ) : (
+                  <Github className="h-4 w-4 mr-2" />
+                )}
+                {socialLoading === 'github' ? 'Connecting...' : 'Continue with GitHub'}
               </Button>
             </div>
 
@@ -281,6 +308,21 @@ export default function Login() {
                 </Link>
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* OAuth Setup Notice */}
+        <Card className="mt-4 bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-4 w-4 text-blue-500" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                OAuth Setup Required
+              </span>
+            </div>
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              Google and GitHub login require additional setup in Supabase Dashboard. Use email/password for now.
+            </p>
           </CardContent>
         </Card>
 

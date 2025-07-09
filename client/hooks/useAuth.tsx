@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase, auth } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 
 interface AuthContextType {
@@ -170,6 +170,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithOAuth = async (provider: 'github' | 'google') => {
     try {
+      // Check if provider is enabled by attempting to get the provider info
+      const { data: config } = await supabase.auth.getSession()
+      if (!config) {
+        throw new Error(`${provider} authentication is not configured. Please contact support.`)
+      }
+
+      // Attempt OAuth sign in
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -178,9 +185,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) {
-        toast.error(`${provider} login failed`, {
+        if (error.message.includes('provider is not enabled')) {
+          toast.error(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login not available`, {
+            description: 'This login method is not configured yet. Please use email/password.'
+          })
+        } else {
+          toast.error(`${provider} login failed`, {
           description: error.message
         })
+        }
         return { data: null, error }
       }
 
