@@ -67,19 +67,17 @@ export default function Profile() {
     
     try {
       const { data, error } = await dbHelpers.profiles.get(user.uid);
-      if (error && error.message !== 'Profile not found') {
-        throw error;
-      }
       
       if (data) {
         setProfile(data);
         setEditedData(data);
       } else {
-        // Profile doesn't exist, create a basic one
+        // Profile doesn't exist, create a basic one with user data
         const newProfile = {
           id: user.uid,
-          full_name: user.user_metadata?.full_name || '',
-          avatar_url: user.user_metadata?.avatar_url || null,
+          email: user.email || '',
+          full_name: user.displayName || '',
+          avatar_url: user.photoURL || null,
           bio: '',
           username: '',
           phone: '',
@@ -106,7 +104,9 @@ export default function Profile() {
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      toast.error('Failed to load profile');
+      toast.error('Failed to load profile', {
+        description: 'Please try refreshing the page'
+      });
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ export default function Profile() {
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile', {
-        description: 'Please try again.',
+        description: error instanceof Error ? error.message : 'Please try again.',
       });
     } finally {
       setSaving(false);

@@ -25,15 +25,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       
       if (user) {
-        console.log('User signed in:', user.email)
+        console.log('User signed in:', user.email);
+        
+        // Ensure profile exists for the user
+        ensureProfileExists(user);
       } else {
-        console.log('User signed out')
+        console.log('User signed out');
       }
     })
 
     return () => unsubscribe()
   }, [])
 
+  const ensureProfileExists = async (user: User) => {
+    try {
+      const { dbHelpers } = await import('@/lib/firebase');
+      const { data } = await dbHelpers.profiles.get(user.uid);
+      
+      if (!data) {
+        // Create profile if it doesn't exist
+        const newProfile = {
+          id: user.uid,
+          email: user.email || '',
+          full_name: user.displayName || '',
+          avatar_url: user.photoURL || null,
+          bio: '',
+          username: '',
+          phone: '',
+          year: '',
+          branch: '',
+          roll_number: '',
+          location: 'Kanpur, India',
+          github_url: '',
+          linkedin_url: '',
+          website_url: '',
+          skills: [],
+          level: 'Beginner',
+          points: 0,
+          streak: 0,
+        };
+        
+        await dbHelpers.profiles.update(user.uid, newProfile);
+        console.log('Profile created for user:', user.email);
+      }
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error);
+    }
+  };
   const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
       const { user, error } = await authHelpers.signUp(email, password, displayName)

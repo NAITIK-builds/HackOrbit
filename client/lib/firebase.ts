@@ -195,13 +195,29 @@ export const dbHelpers = {
     update: async (userId: string, updates: any) => {
       try {
         const docRef = doc(db, 'profiles', userId);
-        await updateDoc(docRef, {
-          ...updates,
-          updated_at: new Date()
-        });
+        
+        // Check if document exists first
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          // Create the document if it doesn't exist
+          await setDoc(docRef, {
+            id: userId,
+            ...updates,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+        } else {
+          // Update existing document
+          await updateDoc(docRef, {
+            ...updates,
+            updated_at: new Date()
+          });
+        }
+        
         const updatedDoc = await getDoc(docRef);
         return { data: { id: updatedDoc.id, ...updatedDoc.data() }, error: null };
       } catch (error: any) {
+        console.error('Profile update error:', error);
         return { data: null, error };
       }
     },
@@ -352,11 +368,101 @@ export const dbHelpers = {
   notifications: {
     getAll: async (userId: string) => {
       try {
-        const q = query(
+        // Get user-specific notifications
+        const userQuery = query(
           collection(db, 'notifications'),
-          where('recipient_id', 'in', [userId, null]),
+          where('recipient_id', '==', userId),
           orderBy('created_at', 'desc')
         );
+        
+        // Get global notifications (recipient_id is null)
+        const globalQuery = query(
+          collection(db, 'notifications'),
+          where('recipient_id', '==', null),
+          orderBy('created_at', 'desc')
+        );
+        
+        const [userSnapshot, globalSnapshot] = await Promise.all([
+          getDocs(userQuery),
+          getDocs(globalQuery)
+        ]);
+        
+        const userNotifications = userSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        const globalNotifications = globalSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Combine and sort by created_at
+        const allNotifications = [...userNotifications, ...globalNotifications]
+          .sort((a, b) => {
+            const aTime = a.created_at?.toDate?.() || new Date(a.created_at);
+            const bTime = b.created_at?.toDate?.() || new Date(b.created_at);
+            return bTime.getTime() - aTime.getTime();
+          });
+        
+        return { data: allNotifications, error: null };
+      } catch (error: any) {
+        console.error('Error fetching notifications:', error);
+        return { data: [], error };
+      }
+    },
+
+    subscribe: (userId: string, callback: (notifications: any[]) => void) => {
+      // Subscribe to user-specific notifications
+      const userQuery = query(
+        collection(db, 'notifications'),
+        where('recipient_id', '==', userId),
+        orderBy('created_at', 'desc')
+      );
+      
+      // Subscribe to global notifications
+      const globalQuery = query(
+        collection(db, 'notifications'),
+        where('recipient_id', '==', null),
+        orderBy('created_at', 'desc')
+      );
+      
+      let userNotifications: any[] = [];
+      let globalNotifications: any[] = [];
+      
+      const updateCallback = () => {
+        const allNotifications = [...userNotifications, ...globalNotifications]
+          .sort((a, b) => {
+            const aTime = a.created_at?.toDate?.() || new Date(a.created_at);
+            const bTime = b.created_at?.toDate?.() || new Date(b.created_at);
+            return bTime.getTime() - aTime.getTime();
+          });
+        callback(allNotifications);
+      };
+      
+      const unsubscribeUser = onSnapshot(userQuery, (querySnapshot) => {
+        userNotifications = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        updateCallback();
+      });
+      
+      const unsubscribeGlobal = onSnapshot(globalQuery, (querySnapshot) => {
+        globalNotifications = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        updateCallback();
+      });
+      
+      // Return combined unsubscribe function
+      return () => {
+        unsubscribeUser();
+        unsubscribeGlobal();
+      };
+    }
+  },
         const querySnapshot = await getDocs(q);
         const notifications = querySnapshot.docs.map(doc => ({
           id: doc.id,
