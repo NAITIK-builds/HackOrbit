@@ -549,7 +549,9 @@ export default function Profile() {
                           <div className="flex items-center mt-1">
                             <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                             <span className="text-sm">
-                              {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
+                              {profile?.created_at ? 
+                                (profile.created_at.toDate ? profile.created_at.toDate().toLocaleDateString() : new Date(profile.created_at).toLocaleDateString()) 
+                                : 'Recently'}
                             </span>
                           </div>
                         </div>

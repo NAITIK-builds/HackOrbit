@@ -270,7 +270,7 @@ export default function AdminEventManager() {
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
-                      {new Date(event.date).toLocaleDateString()}
+                      {event.date?.toDate ? event.date.toDate().toLocaleDateString() : new Date(event.date).toLocaleDateString()}
                     </div>
                     <div className="flex items-center">
                       <MapPin className="h-4 w-4 mr-1" />

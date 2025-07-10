@@ -65,7 +65,7 @@ export default function NotificationCenter() {
   }
 
   const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
+    const date = dateString?.toDate ? dateString.toDate() : new Date(dateString);
     const now = new Date()
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
 
