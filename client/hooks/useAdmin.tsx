@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { dbHelpers } from '@/lib/firebase'
 import { useAuth } from './useAuth'
 import { toast } from 'sonner'
 
@@ -9,7 +9,7 @@ export interface AdminUser {
   email: string
   role: 'admin' | 'super_admin' | 'moderator'
   permissions: string[]
-  created_at: string
+  created_at: any
 }
 
 export function useAdmin() {
@@ -28,22 +28,14 @@ export function useAdmin() {
 
     const checkAdminStatus = async () => {
       try {
-        const { data, error } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
+        const isUserAdmin = await dbHelpers.admin.isAdmin(user.uid)
+        setIsAdmin(isUserAdmin)
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error checking admin status:', error)
-        }
-
-        if (data) {
-          setIsAdmin(true)
-          setAdminData(data)
-        } else {
-          setIsAdmin(false)
-          setAdminData(null)
+        if (isUserAdmin) {
+          const { data, error } = await dbHelpers.admin.getAdminData(user.uid)
+          if (data) {
+            setAdminData(data as AdminUser)
+          }
         }
       } catch (err) {
         console.error('Error checking admin status:', err)
@@ -67,13 +59,22 @@ export function useAdmin() {
     }
 
     try {
-      const { error } = await supabase.rpc('send_notification_to_all', {
-        notification_title: title,
-        notification_message: message,
-        notification_type: type
-      })
+      // Get all users and send notification to each
+      const { data: profiles } = await dbHelpers.profiles.getAll()
+      
+      const notifications = profiles.map(profile => ({
+        title,
+        message,
+        type,
+        recipient_id: profile.id,
+        sender_id: user?.uid,
+        read: false
+      }))
 
-      if (error) throw error
+      // Create notifications for all users
+      for (const notification of notifications) {
+        await dbHelpers.notifications.create(notification)
+      }
       
       toast.success('Notification sent to all users!', {
         description: `"${title}" has been delivered to all members.`
@@ -98,14 +99,14 @@ export function useAdmin() {
     }
 
     try {
-      const { error } = await supabase.rpc('send_notification_to_user', {
-        user_id: userId,
-        notification_title: title,
-        notification_message: message,
-        notification_type: type
+      await dbHelpers.notifications.create({
+        title,
+        message,
+        type,
+        recipient_id: userId,
+        sender_id: user?.uid,
+        read: false
       })
-
-      if (error) throw error
       
       toast.success('Notification sent!', {
         description: `"${title}" has been delivered to the user.`

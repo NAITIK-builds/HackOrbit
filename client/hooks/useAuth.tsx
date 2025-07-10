@@ -1,13 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { User } from 'firebase/auth'
+import { auth, authHelpers } from '@/lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
   loading: boolean
-  signUp: (email: string, password: string, metadata?: any) => Promise<any>
+  signUp: (email: string, password: string, displayName?: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
   signInWithProvider: (provider: 'github' | 'google') => Promise<any>
   signOut: () => Promise<any>
@@ -17,102 +17,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) {
-          console.error('Error getting session:', error)
-          toast.error('Authentication error')
-        } else {
-          setSession(session)
-          setUser(session?.user ?? null)
-        }
-      } catch (error) {
-        console.error('Unexpected error getting session:', error)
-        toast.error('Authentication error')
-      } finally {
-        setLoading(false)
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user)
+      setLoading(false)
+      
+      if (user) {
+        console.log('User signed in:', user.email)
+      } else {
+        console.log('User signed out')
       }
-    }
+    })
 
-    getInitialSession()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email)
-        setSession(session)
-        setUser(session?.user ?? null)
-        setLoading(false)
-
-        // Handle auth events with notifications
-        if (event === 'SIGNED_IN') {
-          toast.success('Successfully logged in!', {
-            description: `Welcome back, ${session?.user?.email}`,
-            duration: 3000,
-          })
-        } else if (event === 'SIGNED_OUT') {
-          toast.success('Successfully logged out!', {
-            duration: 2000,
-          })
-        } else if (event === 'SIGNED_UP') {
-          toast.success('Account created successfully!', {
-            description: 'Welcome to HackOrbit!',
-            duration: 3000,
-          })
-        }
-
-        // Create profile for new users
-        if (event === 'SIGNED_IN' && session?.user) {
-          try {
-            // Check if profile exists
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('id', session.user.id)
-              .single()
-
-            if (profileError && profileError.code === 'PGRST116') {
-              // Profile doesn't exist, create it
-              const { error: insertError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: session.user.id,
-                  full_name: session.user.user_metadata?.full_name || '',
-                  avatar_url: session.user.user_metadata?.avatar_url || null,
-                })
-
-              if (insertError) {
-                console.error('Error creating profile:', insertError)
-              }
-            }
-          } catch (error) {
-            console.error('Error handling profile creation:', error)
-          }
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    return () => unsubscribe()
   }, [])
 
-  const signUpWithEmail = async (email: string, password: string, metadata?: any) => {
+  const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: metadata || {}
-        }
-      })
+      const { user, error } = await authHelpers.signUp(email, password, displayName)
 
       if (error) {
-        if (error.message.includes('already registered')) {
+        if (error.code === 'auth/email-already-in-use') {
           toast.error('User already exists!', {
             description: 'Please login instead.',
             action: {
@@ -128,7 +55,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error }
       }
 
-      return { data, error: null }
+      toast.success('Account created successfully!', {
+        description: 'Welcome to HackOrbit!',
+        duration: 3000,
+      })
+
+      return { data: { user }, error: null }
     } catch (error) {
       console.error('Signup error:', error)
       toast.error('Signup failed', {
@@ -140,13 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
+      const { user, error } = await authHelpers.signIn(email, password)
 
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
           toast.error('Invalid credentials', {
             description: 'Please check your email and password'
           })
@@ -158,7 +87,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error }
       }
 
-      return { data, error: null }
+      toast.success('Successfully logged in!', {
+        description: `Welcome back, ${user?.email}`,
+        duration: 3000,
+      })
+
+      return { data: { user }, error: null }
     } catch (error) {
       console.error('Login error:', error)
       toast.error('Login failed', {
@@ -170,34 +104,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithOAuth = async (provider: 'github' | 'google') => {
     try {
-      // Check if provider is enabled by attempting to get the provider info
-      const { data: config } = await supabase.auth.getSession()
-      if (!config) {
-        throw new Error(`${provider} authentication is not configured. Please contact support.`)
+      let result
+      if (provider === 'google') {
+        result = await authHelpers.signInWithGoogle()
+      } else {
+        result = await authHelpers.signInWithGithub()
       }
 
-      // Attempt OAuth sign in
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      })
+      const { user, error } = result
 
       if (error) {
-        if (error.message.includes('provider is not enabled')) {
-          toast.error(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login not available`, {
-            description: 'This login method is not configured yet. Please use email/password.'
-          })
-        } else {
-          toast.error(`${provider} login failed`, {
+        toast.error(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login failed`, {
           description: error.message
         })
-        }
         return { data: null, error }
       }
 
-      return { data, error: null }
+      toast.success('Successfully logged in!', {
+        description: `Welcome, ${user?.displayName || user?.email}`,
+        duration: 3000,
+      })
+
+      return { data: { user }, error: null }
     } catch (error) {
       console.error('OAuth error:', error)
       toast.error(`${provider} login failed`, {
@@ -209,13 +137,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOutUser = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
+      const { error } = await authHelpers.signOut()
       if (error) {
         toast.error('Logout failed', {
           description: error.message
         })
         return { error }
       }
+
+      toast.success('Successfully logged out!', {
+        duration: 2000,
+      })
+
       return { error: null }
     } catch (error) {
       console.error('Logout error:', error)
@@ -228,7 +161,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user,
-    session,
     loading,
     signUp: signUpWithEmail,
     signIn: signInWithEmail,

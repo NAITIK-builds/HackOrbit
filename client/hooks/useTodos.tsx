@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db, realtime } from '@/lib/supabase'
+import { dbHelpers } from '@/lib/firebase'
 import { useAuth } from './useAuth'
 
 export function useTodos() {
@@ -18,7 +18,7 @@ export function useTodos() {
     // Fetch initial todos
     const fetchTodos = async () => {
       try {
-        const { data, error } = await db.todos.getAll(user.id)
+        const { data, error } = await dbHelpers.todos.getAll(user.uid)
         if (error) throw error
         setTodos(data || [])
       } catch (err) {
@@ -31,37 +31,20 @@ export function useTodos() {
     fetchTodos()
 
     // Subscribe to real-time updates
-    const subscription = realtime.subscribeTodos(user.id, (payload) => {
-      const { eventType, new: newRecord, old: oldRecord } = payload
-
-      setTodos(current => {
-        switch (eventType) {
-          case 'INSERT':
-            return [...current, newRecord]
-          case 'UPDATE':
-            return current.map(todo => 
-              todo.id === newRecord.id ? newRecord : todo
-            )
-          case 'DELETE':
-            return current.filter(todo => todo.id !== oldRecord.id)
-          default:
-            return current
-        }
-      })
+    const unsubscribe = dbHelpers.todos.subscribe(user.uid, (updatedTodos) => {
+      setTodos(updatedTodos)
     })
 
-    return () => {
-      subscription.unsubscribe()
-    }
+    return () => unsubscribe()
   }, [user])
 
   const createTodo = async (todoData: any) => {
     if (!user) throw new Error('User not authenticated')
 
     try {
-      const { data, error } = await db.todos.create({
+      const { data, error } = await dbHelpers.todos.create({
         ...todoData,
-        user_id: user.id
+        user_id: user.uid
       })
       if (error) throw error
       return data
@@ -73,7 +56,7 @@ export function useTodos() {
 
   const updateTodo = async (id: string, updates: any) => {
     try {
-      const { data, error } = await db.todos.update(id, updates)
+      const { data, error } = await dbHelpers.todos.update(id, updates)
       if (error) throw error
       return data
     } catch (err) {
@@ -84,7 +67,7 @@ export function useTodos() {
 
   const deleteTodo = async (id: string) => {
     try {
-      const { error } = await db.todos.delete(id)
+      const { error } = await dbHelpers.todos.delete(id)
       if (error) throw error
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete todo')

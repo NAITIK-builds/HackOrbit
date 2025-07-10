@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { dbHelpers } from '@/lib/firebase'
 import { useAuth } from './useAuth'
 
 export interface Notification {
@@ -10,8 +10,8 @@ export interface Notification {
   recipient_id: string | null
   sender_id: string | null
   read: boolean
-  created_at: string
-  expires_at: string | null
+  created_at: any
+  expires_at?: any
 }
 
 export function useNotifications() {
@@ -30,13 +30,7 @@ export function useNotifications() {
     // Fetch initial notifications
     const fetchNotifications = async () => {
       try {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
-          .order('created_at', { ascending: false })
-          .limit(50)
-
+        const { data, error } = await dbHelpers.notifications.getAll(user.uid)
         if (error) {
           console.error('Error fetching notifications:', error)
           setError(error.message)
@@ -54,63 +48,16 @@ export function useNotifications() {
     fetchNotifications()
 
     // Subscribe to real-time updates
-    const subscription = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_id=eq.${user.id}`
-        },
-        (payload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload
+    const unsubscribe = dbHelpers.notifications.subscribe(user.uid, (updatedNotifications) => {
+      setNotifications(updatedNotifications)
+    })
 
-          setNotifications(current => {
-            switch (eventType) {
-              case 'INSERT':
-                return [newRecord as Notification, ...current]
-              case 'UPDATE':
-                return current.map(notification => 
-                  notification.id === newRecord.id ? newRecord as Notification : notification
-                )
-              case 'DELETE':
-                return current.filter(notification => notification.id !== oldRecord.id)
-              default:
-                return current
-            }
-          })
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: 'recipient_id=is.null'
-        },
-        (payload) => {
-          // Handle global notifications
-          const newNotification = payload.new as Notification
-          setNotifications(current => [newNotification, ...current])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      subscription.unsubscribe()
-    }
+    return () => unsubscribe()
   }, [user])
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId)
-
+      const { error } = await dbHelpers.notifications.update(notificationId, { read: true })
       if (error) {
         console.error('Error marking notification as read:', error)
         throw error
@@ -125,15 +72,10 @@ export function useNotifications() {
     if (!user) return
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
-        .eq('read', false)
-
-      if (error) {
-        console.error('Error marking all notifications as read:', error)
-        throw error
+      const unreadNotifications = notifications.filter(n => !n.read)
+      
+      for (const notification of unreadNotifications) {
+        await dbHelpers.notifications.update(notification.id, { read: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark all notifications as read')
@@ -143,11 +85,7 @@ export function useNotifications() {
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId)
-
+      const { error } = await dbHelpers.notifications.delete(notificationId)
       if (error) {
         console.error('Error deleting notification:', error)
         throw error

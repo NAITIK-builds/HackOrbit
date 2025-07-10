@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { storage } from '@/lib/supabase'
+import { storageHelpers } from '@/lib/firebase'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import { Camera, Upload } from 'lucide-react'
+import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ProfileImageUploadProps {
@@ -41,8 +41,8 @@ export default function ProfileImageUpload({
         throw new Error('File size must be less than 5MB.')
       }
 
-      // Upload to Supabase Storage
-      const avatarUrl = await storage.uploadAvatar(user.id, file)
+      // Upload to Firebase Storage
+      const avatarUrl = await storageHelpers.uploadAvatar(user.uid, file)
 
       onUploadComplete?.(avatarUrl)
       
