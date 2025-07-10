@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAdmin } from '@/hooks/useAdmin'
-import { db } from '@/lib/supabase'
+import { dbHelpers } from '@/lib/firebase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,7 +56,7 @@ export default function AdminEventManager() {
 
   const fetchEvents = async () => {
     try {
-      const { data, error } = await db.events.getAll()
+      const { data, error } = await dbHelpers.events.getAll()
       if (error) throw error
       setEvents(data || [])
     } catch (error) {
@@ -70,11 +70,11 @@ export default function AdminEventManager() {
     try {
       const eventData = {
         ...newEvent,
-        date: new Date(newEvent.date).toISOString(),
+        date: new Date(newEvent.date),
         tags: newEvent.tags.split(',').map(tag => tag.trim()).filter(Boolean)
       }
 
-      const { data, error } = await db.events.create(eventData)
+      const { data, error } = await dbHelpers.events.create(eventData)
       if (error) throw error
 
       // Send notification to all users
@@ -103,7 +103,7 @@ export default function AdminEventManager() {
 
   const handleUpdateEvent = async (eventId: string, updates: any) => {
     try {
-      const { data, error } = await db.events.update(eventId, updates)
+      const { data, error } = await dbHelpers.events.update(eventId, updates)
       if (error) throw error
 
       setEvents(prev => prev.map(event => 
@@ -120,7 +120,7 @@ export default function AdminEventManager() {
     if (!confirm('Are you sure you want to delete this event?')) return
 
     try {
-      const { error } = await db.events.delete(eventId)
+      const { error } = await dbHelpers.events.delete(eventId)
       if (error) throw error
 
       setEvents(prev => prev.filter(event => event.id !== eventId))

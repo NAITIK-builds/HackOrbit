@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useState, useEffect } from "react";
-import { db } from "@/lib/supabase";
+import { dbHelpers } from "@/lib/firebase";
 import ProfileImageUpload from "@/components/profile/ProfileImageUpload";
 import TodoList from "@/components/todos/TodoList";
 import {
@@ -66,8 +66,8 @@ export default function Profile() {
     if (!user) return;
     
     try {
-      const { data, error } = await db.profiles.get(user.id);
-      if (error && error.code !== 'PGRST116') {
+      const { data, error } = await dbHelpers.profiles.get(user.uid);
+      if (error && error.message !== 'Profile not found') {
         throw error;
       }
       
@@ -77,7 +77,7 @@ export default function Profile() {
       } else {
         // Profile doesn't exist, create a basic one
         const newProfile = {
-          id: user.id,
+          id: user.uid,
           full_name: user.user_metadata?.full_name || '',
           avatar_url: user.user_metadata?.avatar_url || null,
           bio: '',
@@ -96,7 +96,7 @@ export default function Profile() {
           streak: 0,
         };
         
-        const { data: createdProfile, error: createError } = await db.profiles.update(user.id, newProfile);
+        const { data: createdProfile, error: createError } = await dbHelpers.profiles.update(user.uid, newProfile);
         if (createError) {
           console.error('Error creating profile:', createError);
         } else {
@@ -117,7 +117,7 @@ export default function Profile() {
 
     setSaving(true);
     try {
-      const { data, error } = await db.profiles.update(user.id, editedData);
+      const { data, error } = await dbHelpers.profiles.update(user.uid, editedData);
       if (error) throw error;
       
       setProfile(data);
@@ -271,7 +271,7 @@ export default function Profile() {
                   ) : (
                     <>
                       <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-                        {profile?.full_name || user.email}
+                        {profile?.full_name || user?.email}
                       </h1>
                       {profile?.username && (
                         <p className="text-muted-foreground mb-1">
@@ -521,7 +521,7 @@ export default function Profile() {
                           </label>
                           <div className="flex items-center mt-1">
                             <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span className="text-sm">{user.email}</span>
+                            <span className="text-sm">{user?.email}</span>
                           </div>
                         </div>
                         <div>

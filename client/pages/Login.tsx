@@ -312,16 +312,16 @@ export default function Login() {
         </Card>
 
         {/* OAuth Setup Notice */}
-        <Card className="mt-4 bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+        <Card className="mt-4 bg-green-50/50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="h-4 w-4 text-blue-500" />
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                OAuth Setup Required
+              <AlertCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium text-green-800 dark:text-green-300">
+                Firebase Authentication Ready
               </span>
             </div>
-            <p className="text-xs text-blue-700 dark:text-blue-400">
-              Google and GitHub login require additional setup in Supabase Dashboard. Use email/password for now.
+            <p className="text-xs text-green-700 dark:text-green-400">
+              Google and GitHub login are now powered by Firebase and ready to use!
             </p>
           </CardContent>
         </Card>

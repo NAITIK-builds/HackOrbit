@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { db } from "@/lib/supabase";
+import { dbHelpers } from "@/lib/firebase";
 
 export default function Admin() {
   const { user } = useAuth();
@@ -39,8 +39,8 @@ export default function Admin() {
   const fetchStats = async () => {
     try {
       const [profilesResult, eventsResult] = await Promise.all([
-        db.profiles.getAll(),
-        db.events.getAll(),
+        dbHelpers.profiles.getAll(),
+        dbHelpers.events.getAll(),
       ]);
 
       setStats({
